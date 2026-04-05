@@ -1,4 +1,4 @@
-# Architectural Patterns Report
+# Software Architectual Report
 **Project:** Market Simulation + Multi-Agent RL System  
 **Files Analyzed:** `C:\Users\diens\market_sim.py`, `D:\VSCODE\PyhtonStuff\`  
 **Date:** 2026-04-02
