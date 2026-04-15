@@ -1,4 +1,4 @@
-# 🔥 Apache Spark — Software Architecture Recovery
+# Apache Spark — Software Architecture Recovery
 
 > **Course Project | Software Architecture | Wuhan University**
 > Prof. Peng Liang · liangp@whu.edu.cn
