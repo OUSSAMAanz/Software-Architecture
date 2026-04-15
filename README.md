@@ -1,286 +1,196 @@
-# Architectural Patterns Report
-**Project:** Market Simulation + Multi-Agent RL System  
-**Files Analyzed:** `C:\Users\diens\market_sim.py`, `D:\VSCODE\PyhtonStuff\`  
-**Date:** 2026-04-02
+# 🔥 Apache Spark — Software Architecture Recovery
+
+> **Course Project | Software Architecture | Wuhan University**
+> Prof. Peng Liang · liangp@whu.edu.cn
 
 ---
 
-## Project Overview
+## 👥 Team Members
 
-A multi-agent reinforcement learning system built on top of a custom economic market simulation engine. Agents trained with PPO (Proximal Policy Optimization) interact with a simulated medieval-to-industrial economy, either locally via a Gymnasium interface or remotely via a REST API server.
+| Name | Contribution So Far |
+|------|---------------------|
+| **Oussama** | Project setup, GitHub repository, architectural patterns analysis (Layered, Master-Worker), technical context documentation |
+| **Lie** | Business context analysis, stakeholder identification for the Spark ecosystem |
+| **Ming** | Component-and-connector structure recovery (Driver / Executor / Cluster Manager) |
+| **Obada** | Module structure recovery, decomposition view of Spark Core subsystems |
 
-**Files:**
-
-| File | Role |
-|------|------|
-| `market_sim.py` | Core simulation engine (~4200+ lines) |
-| `train.py` | ML training pipeline (PPO via Stable-Baselines3) |
-| `ServerTest.py` | FastAPI REST server for remote multi-agent play |
-| `ClientTest.py` | Basic TCP client test |
-| `NetworkTest.py` | Multi-threaded stress test (20 concurrent clients) |
+> 📌 **Project status: Midterm (Week 5)** — architecture recovery in progress. Final report due Week 11.
 
 ---
 
-## System Architecture
+## 📌 Project Overview
 
-The project follows a clear **3-tier layered architecture**:
+**Selected OSS Project:** [Apache Spark](https://github.com/apache/spark)
+
+Apache Spark is a unified, open-source distributed computing engine for large-scale data processing. It is one of the most widely adopted big data frameworks in industry, making it an excellent subject for architecture recovery and analysis.
+
+### Why We Chose Apache Spark
+
+Apache Spark presents a rich and well-documented architecture spanning multiple structural dimensions — module decomposition, runtime component interaction, and deployment allocation. Its design decisions directly reflect the quality attributes discussed in the course (scalability, performance, fault tolerance, modifiability), and its real-world adoption across companies like Netflix, Alibaba, and Tencent gives us a concrete business context to analyze.
+
+---
+
+## 🔍 Architecture Recovery — Midterm Progress
+
+### 1. What is Apache Spark's Software Architecture?
+
+Following the definition from Bass et al. (*Software Architecture in Practice, 3rd Ed.*):
+
+> *"The software architecture of a system is the set of structures needed to reason about the system, which comprise software elements, relations among them, and properties of both."*
+
+We identified **three categories of architectural structures** in Spark:
+
+---
+
+### 2. Module Structures
+
+**Decomposition View — Spark Core Subsystems**
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  ML Training Layer  (train.py)                              │
-│  PPO training, Gymnasium wrapper, model checkpointing       │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│  API / Server Layer  (ServerTest.py)                        │
-│  FastAPI REST endpoints, async multi-agent coordination     │
-└─────────────────────────────────────────────────────────────┘
-                            ↓
-┌─────────────────────────────────────────────────────────────┐
-│  Simulation Core  (market_sim.py)                           │
-│  MarketEnvironment, Controllers, Buildings, Trade, Economy  │
-└─────────────────────────────────────────────────────────────┘
+Apache Spark
+├── Spark Core
+│   ├── SparkContext          (entry point, coordinates all operations)
+│   ├── RDD                   (Resilient Distributed Dataset abstraction)
+│   ├── DAGScheduler          (logical execution plan / stage graph)
+│   ├── TaskScheduler         (physical task dispatch to executors)
+│   └── BlockManager          (distributed in-memory/disk storage)
+├── Spark SQL / DataFrame API
+│   ├── Catalyst Optimizer    (logical → physical query planning)
+│   └── Tungsten Engine       (code generation + memory management)
+├── Structured Streaming      (real-time incremental processing)
+├── MLlib                     (machine learning algorithms + pipelines)
+└── GraphX                    (graph-parallel computation)
+```
+
+**Key module relationships:**
+- Spark SQL, MLlib, Streaming, and GraphX all **depend on** Spark Core
+- Spark Core is isolated from higher-level libraries → supports **modifiability**
+- The Catalyst Optimizer and Tungsten Engine are encapsulated within Spark SQL, hiding optimization details from callers (information hiding principle)
+
+---
+
+### 3. Component-and-Connector Structures
+
+**Runtime Architecture: Master-Worker Pattern**
+
+```
+┌──────────────────────────────────────────────────┐
+│                  Driver Program                  │
+│   SparkContext ──► DAGScheduler                  │
+│                ──► TaskScheduler                 │
+└────────────────────────┬─────────────────────────┘
+                         │  submit tasks via RPC
+                         ▼
+┌──────────────────────────────────────────────────┐
+│              Cluster Manager                     │
+│       (YARN / Kubernetes / Standalone)           │
+└──────────┬────────────────────────┬──────────────┘
+           │  allocate resources    │  allocate resources
+           ▼                        ▼
+┌──────────────────┐     ┌──────────────────┐
+│   Executor 1     │     │   Executor 2     │  ...N Executors
+│  ┌────┐ ┌────┐   │     │  ┌────┐ ┌────┐  │
+│  │Task│ │Task│   │     │  │Task│ │Task│  │
+│  └────┘ └────┘   │     │  └────┘ └────┘  │
+│  BlockManager    │     │  BlockManager   │
+└──────────────────┘     └─────────────────┘
+```
+
+| Component | Role |
+|-----------|------|
+| **Driver** | Hosts the user application; builds the DAG; coordinates execution |
+| **Cluster Manager** | Allocates CPU/memory resources across worker nodes |
+| **Executor** | Runs tasks and caches data; reports results back to Driver |
+| **BlockManager** | Manages distributed in-memory and disk storage per node |
+
+**Connectors:** RPC calls (via Netty), shuffle data transfer, heartbeat messages
+
+---
+
+### 4. Architecture in Context (Chapter 3)
+
+#### 🔧 Technical Context
+
+Spark's architecture is driven by core quality attribute requirements:
+
+| Quality Attribute | Architectural Decision |
+|-------------------|----------------------|
+| **Performance** | In-memory RDD caching vs. Hadoop's repeated disk I/O |
+| **Scalability** | Linear horizontal scaling — add Executor nodes without changing architecture |
+| **Fault Tolerance** | RDD lineage graph → automatic recomputation of lost partitions |
+| **Modifiability** | Pluggable Cluster Manager interface (YARN, Kubernetes, Standalone, Mesos) |
+
+#### 💼 Business Context
+
+Spark was created at UC Berkeley's AMPLab in 2009 and open-sourced in 2010 to address real industry pain points: batch jobs that took hours in Hadoop finishing in **minutes**. Key business drivers that shaped the architecture:
+
+- Need for iterative ML algorithms (Hadoop MapReduce was unsuitable for multi-pass algorithms)
+- Support for interactive SQL queries alongside batch pipelines
+- Multi-tenant cluster sharing across engineering teams
+
+#### 👤 Stakeholders
+
+| Stakeholder | Primary Concern |
+|-------------|----------------|
+| Data Engineers | Performance, API usability (Python/Scala/SQL) |
+| Platform / Infra Teams | Scalability, resource management, Kubernetes integration |
+| ML Engineers | MLlib correctness, GPU support, deep learning integration |
+| Database Administrators | Spark SQL correctness, ACID transactions (Delta Lake) |
+| Apache PMC / Contributors | Modifiability, test coverage, backward compatibility |
+
+---
+
+### 5. Why is Spark's Architecture Important? (Chapter 2)
+
+| Reason | Spark Example |
+|--------|--------------|
+| **Inhibits or enables quality attributes** | Immutable RDDs + lineage tracking enable fault tolerance without data replication |
+| **Earliest design decisions have lasting impact** | The choice of in-memory computing (2009) still defines Spark's performance identity today |
+| **Reasoning about change** | Netflix added Structured Streaming *without* modifying Spark Core — evidence of good module isolation |
+| **Conway's Law** | Spark's module structure (SQL, MLlib, Streaming, GraphX) mirrors the separate working groups within the Apache Spark PMC |
+| **Basis for training** | Spark's layered architecture and well-documented views serve as an onboarding reference for new contributors |
+
+---
+
+## 🧩 Architectural Patterns Identified (So Far)
+
+| Pattern | Where in Spark | Purpose |
+|---------|---------------|---------|
+| **Layered Architecture** | Spark Core → SQL / MLlib / Streaming / GraphX | Separation of concerns, modifiability |
+| **Master-Worker** | Driver + Executors | Distributed task execution at scale |
+| **Shared-Data (Repository)** | BlockManager + shuffle service | Distributed data access across nodes |
+| **Pipeline** | DAG of RDD transformations | Lazy evaluation + query optimization |
+
+---
+
+## 🗂️ Repo Structure
+
+```
+Software-Architecture/
+├── README.md                   ← This file (midterm progress)
+├── ARCHITECTURE_PATTERNS.md    ← Detailed pattern analysis
+└── /diagrams/                  ← Architecture diagrams (coming in final)
 ```
 
 ---
 
-## Pattern 1 — Layered Architecture
+## 📅 Project Timeline
 
-**Where:** Whole project  
-**Files:** `market_sim.py` → `ServerTest.py` / `train.py`
-
-Each layer has a single responsibility and only depends on the layer below it:
-
-- **Simulation Core** is self-contained; no knowledge of HTTP or RL frameworks.
-- **API Layer** imports `market_sim` and exposes it over REST; no training logic.
-- **Training Layer** imports `market_sim` and wraps it for Stable-Baselines3; no server logic.
-
-This separation means the simulation can be tested in isolation, served remotely, or trained against — all independently.
-
----
-
-## Pattern 2 — Rich Domain Model
-
-**Where:** `market_sim.py`  
-**Classes:** `item`, `Building`, `ProductionChain`, `Market`, `MarketController`, `MarketEnvironment`
-
-Objects encapsulate both **data and behavior** rather than being passive data containers. Example: `item` objects carry a `set[itemTag]` and `set[itemFlag]` and expose `hasTag()` / `hasFlag()` methods. `MarketController` (~1160 lines) owns buildings, treasury, trade relationships, and all agent-action logic.
-
-**Class hierarchy** (flat — composition over inheritance):
-
-```
-MarketEnvironment
-    ├── Market
-    │     └── itemTrackUnit (per-item supply/demand tracking)
-    ├── Infrastructure
-    ├── PopClass  (population demographics)
-    └── MarketController  (1..N agents)
-          ├── Building  (1..N)
-          │     └── ProductionChain  (1..N)
-          │           └── productionRule
-          └── TradeDeal  (pending/active trades)
-```
+| Milestone | Week | Status |
+|-----------|------|--------|
+| Team formation + project proposal | Week 1–2 | ✅ Done |
+| Architecture recovery (module + C&C structures) | Week 3–4 | ✅ Done |
+| **Midterm presentation** | **Week 5** | ✅ Done |
+| Allocation / deployment view | Week 6–7 | 🔄 In progress |
+| Quality attribute scenario analysis (ATAM-style) | Week 8–9 | ⏳ Upcoming |
+| Earliest design decisions documentation | Week 9–10 | ⏳ Upcoming |
+| **Final presentation + report submission** | **Week 11** | ⏳ Upcoming |
 
 ---
 
-## Pattern 3 — Adapter / Wrapper
+## 📚 References
 
-**Where:** `train.py:48` (`MarketGymEnv`), `market_sim.py:4134` (`SingleAgentEnv`)
-
-Multiple wrapper layers adapt the simulation to different consumers:
-
-```
-gym.Env  (Stable-Baselines3 interface)
-    └── MarketGymEnv  (train.py)
-            └── SingleAgentEnv  (market_sim.py)
-                    └── MarketEnvironment  (market_sim.py)
-```
-
-| Wrapper | Adapts | To |
-|---------|--------|----|
-| `MarketGymEnv` | `SingleAgentEnv` / `MarketEnvironment` | `gym.Env` interface |
-| `SingleAgentEnv` | `MarketEnvironment` | Simplified single-agent step/reset API |
-| `VecNormalize` | `DummyVecEnv` / `SubprocVecEnv` | Running mean/std obs & reward normalization |
-
-**Observation space:** `Box(530,)` float32 clipped to `[-1, 1]`  
-**Action space:** `MultiDiscrete([13, 16, 8])` — 13 action types × 16 slots × 8 slots
-
----
-
-## Pattern 4 — Factory
-
-**Where:** `train.py:98` (`make_env()`), `market_sim.py:44` (`ACTION_SPECS`)
-
-**`make_env()` — closure-based environment factory:**
-
-```python
-def make_env(agent_idx=0, seed=0):
-    def _init():
-        env = MarketGymEnv(agent_idx=agent_idx)
-        env = Monitor(env)
-        return env
-    return _init
-```
-
-Called by vectorized env builders (`DummyVecEnv`, `SubprocVecEnv`) to spawn multiple independent environment instances.
-
-**`ACTION_SPECS` — declarative schema registry:**
-
-```python
-ACTION_SPECS: dict[ActionType, list[ActionParamSpec]] = {
-    ActionType.BUILD_BUILDING: [
-        ActionParamSpec("building_type", "BuildingType", ...),
-        ActionParamSpec("chains", "list", ...),
-    ],
-    ...
-}
-```
-
-Each `ActionType` maps to its parameter schema. Acts as a metadata factory for RL action encoding/decoding.
-
----
-
-## Pattern 5 — Synchronization Barrier
-
-**Where:** `ServerTest.py` — `/step` endpoint
-
-Multi-agent step coordination built from `asyncio.Lock` + `asyncio.Event`:
-
-```
-Agent 1 → POST /step (action[1])
-    locked → pending[1] = action[1]
-    1/N agents ready → asyncio.Event.wait(timeout=10s)
-
-Agent 2 → POST /step (action[2])
-    locked → pending[2] = action[2]
-    N/N agents ready → env.step(all pending)
-                     → Event.set()  (wake all waiters)
-                     → Event.clear() (reset for next tick)
-
-Both agents unblock → each receives their own StepResponse
-```
-
-A 10-second timeout prevents deadlock if an agent disconnects mid-episode. This pattern ensures all agents in a session always step the shared environment together.
-
----
-
-## Pattern 6 — Strategy (CLI Mode Selection)
-
-**Where:** `train.py` — argparse `--mode` flag
-
-Pluggable execution strategies selected at runtime:
-
-| Mode | Function | Description |
-|------|----------|-------------|
-| `train` | `train()` | Single or parallelized single-agent PPO training |
-| `train_multi` | `train_multi()` | Multi-agent training (scaled `n_envs`) |
-| `infer` | `run_inference()` | Model evaluation; optional CSV export of per-tick metrics |
-
-Each strategy reuses the same environment and model infrastructure but differs in how episodes are collected and how results are consumed.
-
----
-
-## Pattern 7 — Observer / Callback
-
-**Where:** `train.py` — Stable-Baselines3 callbacks
-
-Callbacks hook into the training loop as event listeners without coupling training logic to checkpoint/eval concerns:
-
-| Callback | Trigger | Action |
-|----------|---------|--------|
-| `CheckpointCallback` | Every N timesteps | Save model `.zip` to `checkpoints/` |
-| `EvalCallback` | Every N timesteps | Run evaluation episodes; save best model |
-
-Both write to disk independently; the PPO loop has no knowledge of their implementation.
-
----
-
-## Pattern 8 — Vectorized Environment
-
-**Where:** `train.py:119`
-
-Parallelizes environment instances for faster rollout collection:
-
-```
-SubprocVecEnv  — true multiprocessing (one OS process per env, CPU parallelism)
-DummyVecEnv   — single-process sequential fallback (safer, easier to debug)
-    └── both wrapped by VecNormalize
-            norm_obs=True,    clip_obs=10.0
-            norm_reward=True, clip_reward=10.0
-```
-
-`SubprocVecEnv` is used for production training; `DummyVecEnv` is the fallback when subprocess spawning is unavailable (e.g., Windows interactive sessions).
-
----
-
-## Pattern 9 — DTO + Schema Validation
-
-**Where:** `ServerTest.py` — Pydantic models
-
-All data crossing the HTTP boundary is validated through Pydantic `BaseModel` DTOs:
-
-```
-BaseModel
-    ├── ResetRequest    { num_agents: int, max_ticks: int, seed: Optional[int] }
-    ├── ResetResponse   { session_id: str, obs: dict, state_dim: int, action_nvec: list }
-    ├── StepRequest     { session_id: str, ctrl_id: int, action: list[int] }
-    └── StepResponse    { session_id: str, ctrl_id: int, obs, reward, terminated,
-                          truncated, tick: int, info: dict }
-```
-
-Type coercion and validation happen automatically at the FastAPI layer before any simulation logic is touched.
-
----
-
-## Pattern 10 — Type Object (Enum Tag System)
-
-**Where:** `market_sim.py` — `itemTag`, `itemFlag`, `ActionType`
-
-Rather than a deep class hierarchy for items, the simulation uses a **set-based tag system** where each `item` carries multiple runtime type descriptors:
-
-```python
-class itemTag(Enum):   # 37 values — item categories
-    food, crops, metal, alloy, fabric, luxury, explosive, ...
-
-class itemFlag(Enum):  # 25 values — item properties
-    isNutritional, isDurable, isValuable, isHardened, isFlammable, ...
-```
-
-**Multi-tag semantics:**
-- `steel` → `{metal, alloy}` — satisfies both `metal` and `alloy` recipe slots
-- `coal` → `{fuel, coal}` — satisfies generic `fuel` but also coal-specific recipes (coking, steam engines)
-- `silk fabric` → `{fabric, luxury}` — satisfies `fabric` slots and triggers luxury bonuses
-
-Production rules match inputs by **tag intersection**, enabling flexible recipe composition without combinatorial subclasses.
-
----
-
-## Pattern Summary
-
-| # | Pattern | Location | Purpose |
-|---|---------|----------|---------|
-| 1 | Layered Architecture | Whole project | Separation of simulation, serving, and training |
-| 2 | Rich Domain Model | `market_sim.py` | Encapsulate economy logic in cohesive objects |
-| 3 | Adapter / Wrapper | `MarketGymEnv`, `SingleAgentEnv`, `VecNormalize` | Bridge simulation to RL framework interfaces |
-| 4 | Factory | `make_env()`, `ACTION_SPECS` | Controlled environment instantiation and action schema |
-| 5 | Synchronization Barrier | `ServerTest.py /step` | Lock-free multi-agent tick coordination |
-| 6 | Strategy | `train.py --mode` | Pluggable train / infer execution paths |
-| 7 | Observer / Callback | SB3 callbacks | Decouple checkpoint and eval from training loop |
-| 8 | Vectorized Environment | `DummyVecEnv` / `SubprocVecEnv` | Parallel rollout collection |
-| 9 | DTO + Schema Validation | Pydantic models | Type-safe HTTP boundary enforcement |
-| 10 | Type Object (Enum tags) | `itemTag`, `itemFlag` | Flexible multi-tag item classification |
-
----
-
-## Key Dependencies
-
-| Package | Used In | Role |
-|---------|---------|------|
-| `stable-baselines3` | `train.py` | PPO algorithm implementation |
-| `gymnasium` | `train.py` | Standard RL environment interface |
-| `fastapi` | `ServerTest.py` | REST API framework |
-| `pydantic` | `ServerTest.py` | Request/response schema validation |
-| `pyngrok` | `ServerTest.py` | Public tunnel to local server |
-| `uvicorn` | `ServerTest.py` | ASGI server |
-| `numpy` | `train.py`, `market_sim.py` | Numerical arrays for observations |
-| `tensorboard` | `train.py` | Training curve visualization |
+- Bass, L., Clements, P., & Kazman, R. (2012). *Software Architecture in Practice* (3rd ed.). Addison-Wesley.
+- Zaharia, M. et al. (2010). *Spark: Cluster Computing with Working Sets*. HotCloud '10.
+- Apache Spark official documentation: https://spark.apache.org/docs/latest/
+- Apache Spark GitHub repository: https://github.com/apache/spark
