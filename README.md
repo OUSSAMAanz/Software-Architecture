@@ -109,7 +109,7 @@ Apache Spark
 
 ### 4. Architecture in Context (Chapter 3)
 
-#### 🔧 Technical Context
+####  Technical Context
 
 Spark's architecture is driven by core quality attribute requirements:
 
