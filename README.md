@@ -5,7 +5,7 @@
 
 ---
 
-## 👥 Team Members
+##  Team Members
 
 | Name | Contribution So Far |
 |------|---------------------|
@@ -14,11 +14,11 @@
 | **Ming** | Component-and-connector structure recovery (Driver / Executor / Cluster Manager) |
 | **Obada** | Module structure recovery, decomposition view of Spark Core subsystems |
 
-> 📌 **Project status: Midterm (Week 5)** — architecture recovery in progress. Final report due Week 11.
+>  **Project status: Midterm (Week 5)** — architecture recovery in progress. Final report due Week 11.
 
 ---
 
-## 📌 Project Overview
+##  Project Overview
 
 **Selected OSS Project:** [Apache Spark](https://github.com/apache/spark)
 
@@ -30,7 +30,7 @@ Apache Spark presents a rich and well-documented architecture spanning multiple 
 
 ---
 
-## 🔍 Architecture Recovery — Midterm Progress
+##  Architecture Recovery — Midterm Progress
 
 ### 1. What is Apache Spark's Software Architecture?
 
@@ -120,7 +120,7 @@ Spark's architecture is driven by core quality attribute requirements:
 | **Fault Tolerance** | RDD lineage graph → automatic recomputation of lost partitions |
 | **Modifiability** | Pluggable Cluster Manager interface (YARN, Kubernetes, Standalone, Mesos) |
 
-#### 💼 Business Context
+####  Business Context
 
 Spark was created at UC Berkeley's AMPLab in 2009 and open-sourced in 2010 to address real industry pain points: batch jobs that took hours in Hadoop finishing in **minutes**. Key business drivers that shaped the architecture:
 
@@ -128,7 +128,7 @@ Spark was created at UC Berkeley's AMPLab in 2009 and open-sourced in 2010 to ad
 - Support for interactive SQL queries alongside batch pipelines
 - Multi-tenant cluster sharing across engineering teams
 
-#### 👤 Stakeholders
+####  Stakeholders
 
 | Stakeholder | Primary Concern |
 |-------------|----------------|
@@ -152,7 +152,7 @@ Spark was created at UC Berkeley's AMPLab in 2009 and open-sourced in 2010 to ad
 
 ---
 
-## 🧩 Architectural Patterns Identified (So Far)
+##  Architectural Patterns Identified (So Far)
 
 | Pattern | Where in Spark | Purpose |
 |---------|---------------|---------|
@@ -163,7 +163,7 @@ Spark was created at UC Berkeley's AMPLab in 2009 and open-sourced in 2010 to ad
 
 ---
 
-## 🗂️ Repo Structure
+##  Repo Structure
 
 ```
 Software-Architecture/
@@ -174,7 +174,7 @@ Software-Architecture/
 
 ---
 
-## 📅 Project Timeline
+##  Project Timeline
 
 | Milestone | Week | Status |
 |-----------|------|--------|
@@ -188,7 +188,7 @@ Software-Architecture/
 
 ---
 
-## 📚 References
+##  References
 
 - Bass, L., Clements, P., & Kazman, R. (2012). *Software Architecture in Practice* (3rd ed.). Addison-Wesley.
 - Zaharia, M. et al. (2010). *Spark: Cluster Computing with Working Sets*. HotCloud '10.
