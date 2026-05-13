@@ -416,7 +416,119 @@ Software-Architecture/
 
 ---
 
-## 10. References
+## 10. Quality Attribute Requirements — SMART Scenarios (Ch. 4)
+
+Each quality attribute is specified using the 6-part scenario format from Bass et al. (Source · Stimulus · Artifact · Environment · Response · **Measure**).
+
+### Performance
+
+| Part | Description |
+|---|---|
+| **Source** | ML training job (user) |
+| **Stimulus** | 10-iteration training loop starts |
+| **Artifact** | Executor cluster |
+| **Environment** | Normal operation, 16 nodes |
+| **Response** | RDD cached in memory after first pass; iterations 2–10 skip disk I/O entirely |
+| **Measure ★** | Total runtime ≤ 10% of equivalent Hadoop MapReduce job |
+
+### Scalability
+
+| Part | Description |
+|---|---|
+| **Source** | Platform engineering team |
+| **Stimulus** | Add 50 new worker nodes to cluster |
+| **Artifact** | Cluster Manager + Executor allocation |
+| **Environment** | Live production cluster |
+| **Response** | New Executors are discovered and assigned tasks automatically, no code changes |
+| **Measure ★** | Throughput increases ≥ 40× linearly; zero application code changes required |
+
+### Fault Tolerance
+
+| Part | Description |
+|---|---|
+| **Source** | Infrastructure (hardware failure) |
+| **Stimulus** | Worker node crashes mid-job |
+| **Artifact** | DAGScheduler + lost RDD partitions |
+| **Environment** | Job in progress, 1 of N nodes fails |
+| **Response** | DAGScheduler detects failure; recomputes lost partitions from RDD lineage graph |
+| **Measure ★** | Job completes successfully; recomputation time < 2× single-partition compute time |
+
+### Modifiability
+
+| Part | Description |
+|---|---|
+| **Source** | Apache contributor (Netflix team) |
+| **Stimulus** | Add Structured Streaming subsystem to Spark |
+| **Artifact** | Spark Core module |
+| **Environment** | Active codebase, 1,200+ contributors |
+| **Response** | Streaming added as a new library layer on top of Core; Spark Core is unchanged |
+| **Measure ★** | 0 changes to Spark Core API; all existing SQL/MLlib/GraphX tests continue to pass |
+
+---
+
+## 11. Architecture Tactics per Quality Attribute (Ch. 13)
+
+Tactics are the atomic design decisions that achieve quality attribute responses. Patterns are built from collections of tactics.
+
+### Performance Tactics
+- **Introduce concurrency** — `SubprocVecEnv` / parallel Executors process partitions simultaneously
+- **Reduce computational overhead** — RDD in-memory caching eliminates repeated disk I/O for iterative passes
+- **Schedule resources** — dynamic Executor allocation assigns CPU/RAM per job, releases after completion
+- **Increase available resources** — horizontal Executor scaling: add nodes, throughput grows linearly
+
+### Fault Tolerance Tactics
+- **Record/Replay (lineage)** — RDD lineage graph records every transformation; lost partitions are recomputed from parents
+- **Heartbeat monitor** — Driver detects Executor loss via configurable heartbeat timeout
+- **Spare** — standby Driver supported in YARN HA and Kubernetes restart policies
+- **Exception detection** — `DAGScheduler` catches `TaskFailedException` and re-schedules on a different node
+
+### Modifiability Tactics
+- **Encapsulate** — Catalyst Optimizer hidden inside Spark SQL; no external API exposes its internals
+- **Use an intermediary** — `ClusterManager` interface decouples Spark Core from YARN / Kubernetes / Mesos
+- **Restrict communication paths** — library layers (SQL, MLlib) only call Spark Core API; never each other
+- **Abstract common services** — DataFrame API unifies batch, streaming, SQL, and ML under one interface
+
+### Scalability Tactics
+- **Replicate** — `SubprocVecEnv` spawns N independent processes; each is a full environment instance
+- **Horizontal scale-out** — add Executor nodes; TaskScheduler distributes work automatically
+- **Load balancing** — TaskScheduler assigns partitions to the least-loaded Executor
+- **Partition data** — RDD partitioned across cluster; every partition processed in parallel
+
+---
+
+## 12. Seven Categories of Architecture Design Decisions (Ch. 4)
+
+Following Bass et al., every significant architectural decision falls into one of seven categories.
+
+| # | Category | Spark's Decision |
+|---|---|---|
+| 1 | **Allocation of Responsibilities** | Spark Core owns RDD, scheduling, storage. SQL/MLlib/Streaming own their domain. Each module has one clearly defined responsibility. |
+| 2 | **Coordination Model** | Asynchronous RPC (Netty) for Driver→Executor task dispatch. Synchronous request/reply for results. Heartbeat every N seconds for liveness. |
+| 3 | **Data Model** | Immutable, partitioned RDD as the core abstraction. DataFrame adds schema. Partitions are the unit of parallelism and fault recovery. |
+| 4 | **Management of Resources** | Dynamic allocation: Executors requested from Cluster Manager per-job. `MemoryManager` splits RAM between execution and storage pools. |
+| 5 | **Mapping Among Architectural Elements** | Each RDD partition → one Executor task. Each module → one PMC team (Conway's Law). Driver → master node; Executors → worker nodes. |
+| 6 | **Binding Time Decisions** | Cluster Manager bound at **deployment time** (YARN vs K8s vs Standalone). Serializer bound at **configuration time**. Partition count bound at **runtime** when the job starts. |
+| 7 | **Choice of Technology** | Scala for performance-critical Core. Python/R via PySpark/SparkR wrappers. Netty for RPC. Catalyst uses Scala macros for code generation. Kubernetes as the modern Cluster Manager of choice. |
+
+---
+
+## 13. Design Trade-offs
+
+Every architectural decision in Spark optimises for something and pays a cost elsewhere.
+
+| # | Decision | Spark Wins | Spark Loses |
+|---|---|---|---|
+| 1 | **In-memory computation** | Iterative ML/graph: 10–100× faster than MapReduce | Single-pass ETL: JVM + cache overhead makes it slower than simple tools (awk, pandas) |
+| 2 | **Micro-batch streaming** | High throughput, fault tolerance, unified batch+stream API, exactly-once guarantees | Cannot achieve sub-10ms latency — true streaming systems (Apache Flink) win for real-time events |
+| 3 | **Centralised Driver** | Simple coordination, easy debugging, single source of truth for job state | Driver crash = entire job dies. In standalone mode: hard single point of failure with no auto-recovery |
+| 4 | **Shuffle (wide transforms)** | Correct distributed aggregation at any scale — no data locality constraint | Massive network + disk I/O. A poorly partitioned `join` on 1 TB can take hours |
+| 5 | **JVM / Garbage Collection** | Large ecosystem, cross-platform portability, mature profiling tooling | GC pauses grow with data size — full GC on a large Executor can pause all tasks for seconds |
+
+> Architecture is about trade-offs, not perfection. Spark optimises for iterative, large-scale, multi-workload processing and deliberately accepts cost in the scenarios listed above.
+
+---
+
+## 14. References
 
 - Bass, L., Clements, P., & Kazman, R. (2012). *Software Architecture in Practice* (3rd ed.). Addison-Wesley.
 - Zaharia, M. et al. (2010). *Spark: Cluster Computing with Working Sets*. HotCloud '10.
